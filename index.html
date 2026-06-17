@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ Crypto Scanner</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+    .header {
+      text-align: center;
+      padding: 30px 20px 10px;
+      border-bottom: 1px solid #1a1a2e;
+    }
+    .header h1 {
+      font-size: 26px;
+      color: #00d4ff;
+      font-weight: bold;
+    }
+    .header p {
+      color: #666;
+      font-size: 13px;
+      margin-top: 5px;
+    }
+    .last-updated {
+      color: #444;
+      font-size: 11px;
+      margin-top: 4px;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .scan-btn {
+      display: block;
+      margin: 20px auto;
+      background: #00d4ff;
+      color: #000;
+      border: none;
+      padding: 13px 40px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .scan-btn:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      flex: 1;
+      min-width: 110px;
+      background: #1a1a2e;
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+      border: 1px solid #ffffff11;
+    }
+    .stat-value {
+      font-size: 26px;
+      font-weight: bold;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .signals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 14px;
+    }
+    .signal-card {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 18px;
+      border: 1px solid #ffffff0a;
+    }
+    .signal-card.buy { border-color: #00ff8833; }
+    .signal-card.sell { border-color: #ff6b6b33; }
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .symbol {
+      font-size: 17px;
+      font-weight: bold;
+    }
+    .signal-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    .signal-badge.buy { background: #00ff8822; color: #00ff88; }
+    .signal-badge.sell { background: #ff6b6b22; color: #ff6b6b; }
+    .grade-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .grade-badge {
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .score-text {
+      font-size: 12px;
+      color: #888;
+    }
+    .details {
+      font-size: 12px;
+      color: #aaa;
+      line-height: 1.9;
+    }
+    .details span { color: #fff; }
+    .price-text {
+      font-size: 11px;
+      color: #555;
+      margin-top: 10px;
+      border-top: 1px solid #ffffff0a;
+      padding-top: 8px;
+    }
+    .empty-state {
+      text-align: center;
+      color: #555;
+      margin-top: 60px;
+      font-size: 15px;
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 10px; }
+    .loading-state {
+      text-align: center;
+      color: #666;
+      margin-top: 60px;
+    }
+    .loading-state .spinner {
+      font-size: 36px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ Crypto Scanner</h1>
+  <p>RSI Divergence + Market Structure Strategy</p>
+  <p class="last-updated" id="lastUpdated"></p>
+</div>
+
+<div class="container">
+  <button class="scan-btn" id="scanBtn" onclick="fetchSignals()">🔍 Scan Now</button>
+
+  <div class="stats" id="stats" style="display:none"></div>
+
+  <div id="content">
+    <div class="empty-state">
+      <div class="icon">📡</div>
+      <p>No signals yet. Press Scan Now!</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_URL = 'https://dllmsfbvucduyxdlylgb.supabase.co/functions/v1/scanner'
+  const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsbG1zZmJ2dWNkdXl4ZGx5bGdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA3MzQ3NzksImV4cCI6MjA2NjMxMDc3OX0.placeholder'
+
+  function gradeColor(grade) {
+    if (grade === 'A+') return '#00ff88'
+    if (grade === 'A') return '#00d4ff'
+    if (grade === 'B') return '#ffaa00'
+    return '#ff6b6b'
+  }
+
+  function formatPrice(price) {
+    if (price > 1000) return '$' + price.toLocaleString('en', {maximumFractionDigits: 2})
+    if (price > 1) return '$' + price.toFixed(4)
+    return '$' + price.toFixed(6)
+  }
+
+  async function fetchSignals() {
+    const btn = document.getElementById('scanBtn')
+    const content = document.getElementById('content')
+    const stats = document.getElementById('stats')
+
+    btn.disabled = true
+    btn.textContent = '🔄 Scanning...'
+    content.innerHTML = `<div class="loading-state"><div class="spinner">🔄</div><p style="margin-top:12px;color:#555">Scanning ${15} coins across 3 timeframes...</p></div>`
+    stats.style.display = 'none'
+
+    try {
+      const res = await fetch(API_URL, {
+        headers: { 'Authorization': `Bearer ${ANON_KEY}` }
+      })
+      const data = await res.json()
+      const signals = data.signals || []
+
+      document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString()
+
+      if (signals.length === 0) {
+        content.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><p>No high-quality signals found right now.<br>Market may be ranging. Try again later.</p></div>`
+        stats.style.display = 'none'
+      } else {
+        // Stats
+        const buys = signals.filter(s => s.signal === 'BUY').length
+        const sells = signals.filter(s => s.signal === 'SELL').length
+        const aplus = signals.filter(s => s.grade === 'A+').length
+        stats.style.display = 'flex'
+        stats.innerHTML = [
+          { label: 'Total Signals', value: signals.length, color: '#00d4ff' },
+          { label: 'BUY', value: buys, color: '#00ff88' },
+          { label: 'SELL', value: sells, color: '#ff6b6b' },
+          { label: 'A+ Setups', value: aplus, color: '#ffaa00' },
+        ].map(s => `
+          <div class="stat-card">
+            <div class="stat-value" style="color:${s.color}">${s.value}</div>
+            <div class="stat-label">${s.label}</div>
+          </div>
+        `).join('')
+
+        // Signal Cards
+        content.innerHTML = `<div class="signals-grid">${signals.map(s => `
+          <div class="signal-card ${s.signal.toLowerCase()}">
+            <div class="card-top">
+              <span class="symbol">${s.symbol}</span>
+              <span class="signal-badge ${s.signal.toLowerCase()}">${s.signal}</span>
+            </div>
+            <div class="grade-row">
+              <span class="grade-badge" style="background:${gradeColor(s.grade)}22;color:${gradeColor(s.grade)}">Grade: ${s.grade}</span>
+              <span class="score-text">Score: ${s.score}/100</span>
+            </div>
+            <div class="details">
+              📈 Trend: <span>${s.trend}</span><br>
+              📅 Weekly: <span>${s.weekly_trend}</span><br>
+              📆 Daily: <span>${s.daily_trend}</span><br>
+              📊 RSI: <span style="color:${s.rsi < 30 ? '#00ff88' : s.rsi > 70 ? '#ff6b6b' : '#fff'}">${s.rsi}</span><br>
+              🔀 Divergence: <span>${s.divergence}</span><br>
+              🕯️ Candle: <span>${s.candlestick_pattern}</span><br>
+              🛡️ Support/Res: <span>${s.support_detected ? '✅ Near Support' : s.resistance_detected ? '⚠️ Near Resistance' : '—'}</span>
+            </div>
+            <div class="price-text">💰 Price: ${formatPrice(s.price)}</div>
+          </div>
+        `).join('')}</div>`
+      }
+    } catch (err) {
+      content.innerHTML = `<div class="empty-state"><div class="icon">❌</div><p>Error: ${err.message}</p></div>`
+    }
+
+    btn.disabled = false
+    btn.textContent = '🔍 Scan Now'
+  }
+
+  // Auto scan every 60 seconds
+  setInterval(fetchSignals, 60000)
+</script>
+
+</body>
+</html>
